@@ -1,0 +1,41 @@
+ldap:
+  server: "ldap://adapp.srp.gov"  # server used to bind to AD with pabtechstop account (need to change to gMSA)
+  search_base: "dc=srp,dc=gov"    # search base to search the user credentials (retrieves their email)
+
+# shelf = [total_slots, starting_slot, type_of_device, #_of_devices_per_slot]
+shelf_objects:
+  elite_book_shelf: [36, 1, "Computer", 1]
+  z_book_shelf: [20, 37, "Computer", 1]
+  tough_book_shelf: [5, 57, "Computer", 1]
+  repair_shelf: [10, 62, "Computer", 1]
+  desktop_shelf: [1, 72, "Computer", 1]
+  phone_shelf: [22, 100, "Phone", 2]
+  mac_shelf: [0, 0, "Mac", 0]
+
+# task key works, should be lowercase
+key_words: ["techstop asset pickup", "ready for pickup", "techstop computer pickup"]
+
+# for every shelf object, there is a shelf_assignment if we want to notify/slot to it directly
+# shelf_name = [[key_words], shelf_name]
+# key_words is key_words found in the device asset or sys_class_name
+# we add the key_words from the above config ^ key_words =... incase there is CI on the task
+# this way if we find those keywords we know what shelf we can slot the device in
+shelf_assignment:
+  elite_book:
+    - ["elite", "g11", "surface", "techstop computer pickup"]
+    - "elite_book_shelf"
+  z_book:
+    - ["zbook", "techstop computer pickup"]
+    - "z_book_shelf"
+  tough_book:
+    - ["panasonic", "techstop computer pickup"]
+    - "tough_book_shelf"
+  desktop:
+    - ["mini", "techstop computer pickup"]
+    - "desktop_shelf"
+  mac:
+    - ["macbook", "techstop computer pickup"]
+    - "mac_shelf"
+  smart_phone:
+    - ["smartphone", "iphone", "ready for pickup"]
+    - "phone_shelf"
