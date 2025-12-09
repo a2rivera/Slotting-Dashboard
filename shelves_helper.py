@@ -86,11 +86,12 @@ class Shelf:
                     print(f"Device '{device}' assigned to slot {i + self.slot_start}")
                     return i
                 else:
-                    newDevices = []
-                    if isinstance(self.slots[i], list) and len(self.slots[i] < self.number_of_devices_per_slot):
+                    if isinstance(self.slots[i], list) and (len(self.slots[i]) < self.number_of_devices_per_slot):
                         continue # slot is full
                     else:
-                        newDevices.append(self.slots[i])
+                        newDevices = []
+                        for slottedDevice in self.slots[i]:
+                            newDevices.append(slottedDevice)
                         newDevices.append(device)
                         self.slots[i] = newDevices
                         self.saveSlots()
