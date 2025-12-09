@@ -86,13 +86,21 @@ class Shelf:
                     print(f"Device '{device}' assigned to slot {i + self.slot_start}")
                     return i
                 else:
-                    if isinstance(self.slots[i], list) and (len(self.slots[i]) < self.number_of_devices_per_slot):
-                        continue # slot is full
+                    # Slot is not empty - check if it can accommodate more devices
+                    if isinstance(self.slots[i], list):
+                        # Slot is a list - check if it has room
+                        if len(self.slots[i]) < self.number_of_devices_per_slot:
+                            # Has room - add device to list
+                            self.slots[i].append(device)
+                            self.saveSlots()
+                            print(f"Device '{device}' assigned to slot {i + self.slot_start}")
+                            return i
+                        else:
+                            # Slot is full - continue to next slot
+                            continue
                     else:
-                        newDevices = []
-                        for slottedDevice in self.slots[i]:
-                            newDevices.append(slottedDevice)
-                        newDevices.append(device)
+                        # Slot has a single device (string) - convert to list and add device
+                        newDevices = [self.slots[i], device]
                         self.slots[i] = newDevices
                         self.saveSlots()
                         print(f"Device '{device}' assigned to slot {i + self.slot_start}")
@@ -174,4 +182,4 @@ if not shelves: # Clause so that importing into other scripts doesn't re-initial
         shelf_object = Shelf(value[0], key, value[1], value[2], value[3])  # Create a shelf with given slots, file_name, slotting start number, # of slots per device
         shelves[key] = shelf_object # Store shelf in dictionary
 
-#shelves["elite_book_shelf"].assignDevice("NB62KA721Q74")
+#shelves["phone_shelf"].assignDevice("TESTPHONE1")
