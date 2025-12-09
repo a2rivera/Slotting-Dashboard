@@ -1,8 +1,0 @@
-{
-  "ldap": {
-    "server": "ldap://adapp.srp.gov",
-    "username": "pabtechstop@srp.gov",
-    "password": "ReturnToChaos26",
-    "search_base": "dc=srp,dc=gov"
-  }
-}
