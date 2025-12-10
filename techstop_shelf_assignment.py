@@ -1,88 +1,36 @@
-import re
 import asyncio
-from app_helpers import extract_ucd_slot
-from shelves_helper import get_shelf
-from api_client import run_calls_sync, call_api
+from app_helpers import assign_device_to_shelf
+from api_client import run_calls_sync
 import yaml
-from app_helpers import find_key_words
 
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 async def assign_task_slot(task: dict):
-    short_description = re.sub(r'[^\w\s]+', '', str(task["short_description"]).lower())
-    display_name = task["cmdb_ci"]
+    """
+    Wrapper function for override mode (backward compatibility).
+    Uses assign_device_to_shelf with override_mode=True to assign to specific slot.
+    Returns True on success, False on failure.
+    """
+    result = await assign_device_to_shelf(task, override_mode=True)
+    shelf_or_success, slot_number_or_error, is_overfill = result
     
-    if ("slot" not in short_description):
-        return False
-    if str(task["state"]) == "Cancelled" or str(task["state"]) == "Closed" or str(task["state"]) == "Resolved": # These should not appear in the query but this is a safe guard
-        return False
-    
-    key_words_found, key_words_found_str = find_key_words(task)
-    if not key_words_found:
-        return False
-    
-    slot_number, ucd = extract_ucd_slot(short_description)
-    computer_found = []
-    
-    if slot_number is not None:
-        shelf, slot_number_ = get_shelf(device=None, slot_number=int(slot_number))
-        if shelf == None or slot_number == None:
-            return False
-        print(f"{task["number"]} {slot_number}")
-        print(f"{task["number"]} {shelf.file_name}")
-        shelf.assignDeviceWithSlot(display_name, slot_number)
-        
+    # For override mode, we return True/False for backward compatibility
+    if shelf_or_success is not False:
+        # Print debug info (shelf_or_success is the shelf object in override mode)
+        if shelf_or_success and slot_number_or_error:
+            print(f"{task['number']} {slot_number_or_error}")
+            print(f"{task['number']} {shelf_or_success.file_name}")
         return True
-    else:
-        if display_name == "" and (not key_words_found):
-            return False
-        elif display_name == "" and key_words_found: # The new workflow WST made for some reason there is no cmdb_ci on it in the rest call
-            display_name = f"placeholder_device_{task["number"]}" # we make a placeholder for computerfound because no cmdb found, to then be able to slot the device
-            computer_found = [
-                {
-                    "asset": key_words_found_str,
-                    "sys_class_name": "none"
-                }
-            ]
-        elif display_name != "" and key_words_found:
-            spec = {
-                "url": ("http://configurationitem/table/computer?SystemID=SOAP-UI&ReferenceID=*&MaxRows=100&KeyName=u_display_name&KeyValue=" + display_name),
-                "headers": {
-                    "accept": "application/json",
-                },
-                "method": "GET"
-            }
-            response = await call_api(spec["url"], headers=spec["headers"], method=spec["method"])
-            computer_found = response["result"]
-            
-        if len(computer_found) == 0:
-            return False
-        
-        shelf, slot_number_ = get_shelf(computer_found)
-        if shelf == None or slot_number == None:
-            return False
-        shelf.assignDeviceWithSlot(display_name, slot_number)
-
-        return True
+    return False
 
 def get_tickets():
-    unslotted_query_params = "sysparm_query=active=true&sys_class_name=Incident&short_descriptionLIKE"
-
-    first = False
-    for key_words in config["key_words"]:
-        if not first:
-            first = True
-            unslotted_query_params += key_words
-        else:
-            unslotted_query_params += f"^ORshort_descriptionLIKE{key_words}"
-
     call_specs = [
         { # Rest Call to get TASKs in PAB TechStop Support slotted
             "url": "http://configurationitem/table/task?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue=PAB TechStop Support",
             "headers": {
                 "accept": "application/json",
-                "QueryParams": "sysparm_query=active=true&sys_class_name=Catalog Task&short_descriptionLIKEslot"
+                "QueryParams": "sysparm_query=short_descriptionLIKEslot&active=true&sys_class_name=Catalog Task"
             },
             "method": "GET"
         },
@@ -90,7 +38,7 @@ def get_tickets():
             "url": "http://configurationitem/table/task?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue=TechStop Hardware Support",
             "headers": {
                 "accept": "application/json",
-                "QueryParams": "sysparm_query=active=true&sys_class_name=Catalog Task&short_descriptionLIKEslot"
+                "QueryParams": "sysparm_query=short_descriptionLIKEslot&active=true&sys_class_name=Catalog Task"
             },
             "method": "GET"
         },
@@ -98,7 +46,7 @@ def get_tickets():
             "url": "http://configurationitem/table/incident?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue=PAB TechStop Support",
             "headers": {
                     "accept": "application/json",
-                    "QueryParams": "sysparm_query=active=true&sys_class_name=Incident&short_descriptionLIKEslot"
+                    "QueryParams": "sysparm_query=short_descriptionLIKEslot&active=true&sys_class_name=Incident"
             },
             "method": "GET"
         },
@@ -106,19 +54,35 @@ def get_tickets():
             "url": "http://configurationitem/table/incident?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue=TechStop Hardware Support",
             "headers": {
                     "accept": "application/json",
-                    "QueryParams": "sysparm_query=active=true&sys_class_name=Incident&short_descriptionLIKEslot"
+                    "QueryParams": "sysparm_query=short_descriptionLIKEslot&active=true&sys_class_name=Incident"
             },
             "method": "GET"
-        },
+        }
     ]
+    
+    for key_words in config["key_words"]:
+        spec = {
+            "url": "http://configurationitem/table/task?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue=PAB TechStop Support",
+            "headers": {
+                "accept": "application/json",
+                "QueryParams": f"sysparm_query=short_descriptionLIKE{key_words}&active=true&sys_class_name=Catalog Task"
+            },
+            "method": "GET"
+        }
+        call_specs.append(spec)
 
     results = run_calls_sync(call_specs=call_specs)
-    tickets: list[dict[str, any]] = []
+
+    #tickets: list[dict[str, any]] = []
+    unique_tickets_by_sys_id: dict[str, any] = {}
 
     for result in results:
-        tickets.extend(result.get("result", []))
-        
-    return tickets
+        for ticket in result["result"]:
+            unique_tickets_by_sys_id[ticket["sys_id"]] = ticket
+        #tickets.extend(result.get("result", []))
+
+    #tickets = unique_tickets_by_sys_id(tickets)
+    return list(unique_tickets_by_sys_id.values())
 
 async def process_tickets(tickets):
     tasks = []
