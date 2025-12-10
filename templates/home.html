@@ -614,24 +614,48 @@
         fetch(url)
           .then(res => res.json())
           .then(data => {
-            // Update row with slot info
-            tr.dataset.slot = data.slotNumber;
-            tr.dataset.slotted = 'true';
-            tr.dataset.category = categoryFromSlot(data.slotNumber);
+            // Check if slot is -1 (device doesn't require slotting, e.g., Mac)
+            const isNoSlot = data.slotNumber === -1 || data.slotNumber === '-1' || data.slotNumber === null;
+            
+            if (isNoSlot) {
+              // Device doesn't require slotting (e.g., Mac) - just send email notification
+              // Don't update slot info, don't mark as slotted
+              
+              // Update UCD badge if UCD is provided
+              if (data.UCD) {
+                const badge = tr.children[3].querySelector('span');
+                badge.className = classifyUcdBadge(new Date(data.UCD));
+                badge.textContent = data.UCD;
+              }
 
-            tr.children[1].textContent = data.slotNumber;
+              // Show popup confirmation for email sent (no slotting)
+              showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Email notification sent. Device does not require slotting.${data.UCD ? '<br>UCD: ' + data.UCD : ''}`);
 
-            const badge = tr.children[3].querySelector('span');
-            badge.className = classifyUcdBadge(new Date(data.UCD));
-            badge.textContent = data.UCD;
+              // Stop loading animation
+              btn.classList.remove('loading');
 
-            // Show popup confirmation
-            showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Slot: ${data.slotNumber}<br>UCD: ${data.UCD}`);
+              // Remove notify button since notification was sent
+              tr.children[5].innerHTML = '<span class="muted">—</span>';
+            } else {
+              // Normal slotting flow - update row with slot info
+              tr.dataset.slot = data.slotNumber;
+              tr.dataset.slotted = 'true';
+              tr.dataset.category = categoryFromSlot(data.slotNumber);
 
-            // Stop loading animation
-            btn.classList.remove('loading');
+              tr.children[1].textContent = data.slotNumber;
 
-            tr.children[5].innerHTML = '<span class="muted">—</span>';
+              const badge = tr.children[3].querySelector('span');
+              badge.className = classifyUcdBadge(new Date(data.UCD));
+              badge.textContent = data.UCD;
+
+              // Show popup confirmation
+              showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Slot: ${data.slotNumber}<br>UCD: ${data.UCD}`);
+
+              // Stop loading animation
+              btn.classList.remove('loading');
+
+              tr.children[5].innerHTML = '<span class="muted">—</span>';
+            }
 
             recount();
             applyFilters();

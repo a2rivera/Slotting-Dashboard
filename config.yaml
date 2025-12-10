@@ -10,7 +10,7 @@ shelf_objects:
   repair_shelf: [10, 62, "Computer", 1]
   desktop_shelf: [1, 72, "Computer", 1]
   phone_shelf: [22, 100, "Phone", 2]
-  mac_shelf: [0, 0, "Mac", 0]
+  mac_shelf: [0, 0, "Mac", 0] # Mac shelf is used for only emailing the user, it is not used for slotting, that is why it is set to 0
 
 # task key works, should be lowercase
 key_words: ["techstop asset pickup", "ready for pickup", "techstop computer pickup"]
@@ -18,7 +18,7 @@ key_words: ["techstop asset pickup", "ready for pickup", "techstop computer pick
 # for every shelf object, there is a shelf_assignment if we want to notify/slot to it directly
 # shelf_name = [[key_words], shelf_name]
 # key_words is key_words found in the device asset or sys_class_name
-# we add the key_words from the above config ^ key_words =... incase there is CI on the task
+# we add the key_words from the above config ^ key_words =... incase there is no CI on the task
 # this way if we find those keywords we know what shelf we can slot the device in
 shelf_assignment:
   elite_book:
@@ -39,3 +39,28 @@ shelf_assignment:
   smart_phone:
     - ["smartphone", "iphone", "ready for pickup"]
     - "phone_shelf"
+
+# Overflow handling (order matters; first match wins)
+# Each rule:
+#   keywords: list of substrings to match against asset/sys_class_name
+#   shelf: name from shelf_objects/shelf_assignment
+#   slot: explicit slot number to use for overflow (fallback to shelf.slot_start if omitted)
+overflow_rules:
+  - keywords: shelf_assignment["elite_book"][0]
+    shelf: "desktop_shelf"
+    slot: 72
+  - keywords: shelf_assignment["z_book"][0]
+    shelf: "desktop_shelf"
+    slot: 72
+  - keywords: shelf_assignment["tough_book"][0]
+    shelf: "desktop_shelf"
+    slot: 72
+  - keywords: shelf_assignment["smart_phone"][0]
+    shelf: "desktop_shelf"
+    slot: 72
+  - keywords: shelf_assignment["mac"][0]
+    shelf: "desktop_shelf"
+    slot: 72
+  - keywords: shelf_assignment["desktop"][0]
+    shelf: "desktop_shelf"
+    slot: 72

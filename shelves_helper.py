@@ -56,24 +56,48 @@ class Shelf:
         if self.number_of_devices_per_slot <= 0: return -1
         self.loadSlots()
         slot = int(slot)
-        if (slot - self.slot_start) >= len(self.slots):
+        
+        # Check if slot is within valid range (must be >= slot_start and < slot_start + number_of_slots)
+        if slot < self.slot_start:
+            print(f"{device} {slot} Slot number is less than shelf start slot {self.slot_start}!")
+            return None
+        
+        slot_index = slot - self.slot_start
+        if slot_index >= len(self.slots):
             print(f"{device} {slot} Slot number is larger than current slots available!")
-            return
-        slot = slot - self.slot_start
-        print(slot)
-        print(len(self.slots))
-        if not self.slots[slot] == None:
+            return None
+        
+        # Validate slot_index is non-negative (should be caught above, but double-check)
+        if slot_index < 0:
+            print(f"{device} {slot} Invalid slot index calculated: {slot_index}")
+            return None
+        
+        # Check if adding device would exceed max devices per slot (warning only, since this is an override)
+        if not self.slots[slot_index] == None:
+            current_count = len(self.slots[slot_index]) if isinstance(self.slots[slot_index], list) else 1
+            
+            existing = [str(d).lower() for d in self.slots[slot_index]] # check if device is already in slot
+            if str(device).lower() in existing:
+                print(f"Device '{device}' already present in slot {slot}; skipping.")
+                return slot_index
+
+            if current_count >= self.number_of_devices_per_slot and self.number_of_devices_per_slot > 0:
+                print(f"Warning: Slot {slot} already has {current_count} device(s), max is {self.number_of_devices_per_slot}. Adding anyway (override mode).")
+            
             newDevices = []
-            if isinstance(self.slots[slot], list):
-                for slottedDevice in self.slots[slot]:
+            if isinstance(self.slots[slot_index], list):
+                for slottedDevice in self.slots[slot_index]:
                     newDevices.append(slottedDevice)
             else:
-                newDevices.append(self.slots[slot])
+                newDevices.append(self.slots[slot_index])
             newDevices.append(device)
-            self.slots[slot] = newDevices
+            self.slots[slot_index] = newDevices
         else:
-            self.slots[slot] = device
+            self.slots[slot_index] = device
+        
         self.saveSlots()
+        print(f"Device '{device}' assigned to slot {slot} (override)")
+        return slot_index
 
     def assignDevice(self, device):
         if self.number_of_devices_per_slot <= 0: return -1
@@ -182,4 +206,4 @@ if not shelves: # Clause so that importing into other scripts doesn't re-initial
         shelf_object = Shelf(value[0], key, value[1], value[2], value[3])  # Create a shelf with given slots, file_name, slotting start number, # of slots per device
         shelves[key] = shelf_object # Store shelf in dictionary
 
-#shelves["phone_shelf"].assignDevice("TESTPHONE1")
+#shelves["phone_shelf"].displaySlots()
