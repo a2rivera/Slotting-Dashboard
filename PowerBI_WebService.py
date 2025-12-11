@@ -16,6 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app_helpers import extract_ucd_slot
 from techstop_shelf_assignment import process_slot_tickets, get_tickets
 from techstop_notify_automation import slot_new_device_task
+from shelves_helper import shelves
 with open("config.json", "r") as f:
     config = json.load(f)
 
@@ -34,8 +35,9 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 def setResponse():
     global globalResponse
+    tickets = get_tickets()
     formatted_response = {
-        "result": get_tickets()
+        "result": tickets
     }
 
     for item in formatted_response["result"]:
@@ -43,6 +45,18 @@ def setResponse():
         item["slot"] = slot
         item["ucd"] = ucd
     globalResponse = formatted_response
+    
+    # Build set of active ticket numbers
+    active_ticket_numbers = {str(ticket["number"]) for ticket in tickets}
+    
+    # Remove devices from closed tickets on all shelves
+    print("Cleaning up devices from closed tickets...")
+    total_removed = 0
+    for shelf in shelves.values():
+        removed = shelf.removeDevicesFromClosedTickets(active_ticket_numbers)
+        total_removed += removed
+    if total_removed > 0:
+        print(f"Total devices removed from closed tickets: {total_removed}")
     
     process_slot_tickets()
 

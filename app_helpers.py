@@ -78,7 +78,7 @@ async def assign_device_to_shelf(task: dict, override_mode: bool = None):
             display_name = f"placeholder_device_{task['number']}"
         
         # Assign device to specific slot
-        shelf.assignDeviceWithSlot(display_name, int(slot_number_from_desc)) # We don't use the slot_index here because it is zero indexed and assignDeviceWithSlot expects the slot number not the index/converts to zero based index
+        shelf.assignDeviceWithSlot(display_name, int(slot_number_from_desc), ticket_number=str(task.get('number', ''))) # We don't use the slot_index here because it is zero indexed and assignDeviceWithSlot expects the slot number not the index/converts to zero based index
         return shelf, int(slot_number_from_desc), False # Returns the shelf, the slot number (from description to add to short description), and False because it is not an overfill
     
     # Auto-assign mode: let shelf choose the slot
@@ -125,7 +125,7 @@ async def assign_device_to_shelf(task: dict, override_mode: bool = None):
     if shelf is None: # If there is no shelf found, we return an error
         return False, "Could not find shelf for device", False
     
-    slot_index = shelf.assignDevice(display_name) # We don't use the slot_index here because it is zero indexed and assignDevice expects the slot number not the index/converts to zero based index
+    slot_index = shelf.assignDevice(display_name, ticket_number=str(task.get('number', ''))) # We don't use the slot_index here because it is zero indexed and assignDevice expects the slot number not the index/converts to zero based index
     
     # Handle overflow case (no available slots)
     if slot_index is None: # If there is no slot found, that means the shelf is full and we need to assign the device to the overflow slot
@@ -134,7 +134,7 @@ async def assign_device_to_shelf(task: dict, override_mode: bool = None):
         if overfill_shelf is None:
             return False, "Could not find overflow shelf for device", False
         slot_to_use = overfill_slot if overfill_slot is not None else overfill_shelf.slot_start
-        overfill_shelf.assignDeviceWithSlot(display_name, slot_to_use)  # Uses the configured overflow slot (or shelf start)
+        overfill_shelf.assignDeviceWithSlot(display_name, slot_to_use, ticket_number=str(task.get('number', '')))  # Uses the configured overflow slot (or shelf start)
         return overfill_shelf, slot_to_use, True
     
     # Return shelf, actual slot number (index + start), and overflow flag
