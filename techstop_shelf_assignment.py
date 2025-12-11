@@ -96,6 +96,3 @@ async def process_tickets(tickets):
 
 def process_slot_tickets():
     return asyncio.run(process_tickets(get_tickets()))
-
-
-process_slot_tickets()

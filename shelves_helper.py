@@ -52,7 +52,7 @@ class Shelf:
                 print("File is locked cannot save! Retrying in 5 seconds...")
                 time.sleep(5)  # Wait before retrying
 
-    def assignDeviceWithSlot(self, device, slot):
+    def assignDeviceWithSlot(self, device, slot, ticket_number):
         if self.number_of_devices_per_slot <= 0: return -1
         self.loadSlots()
         slot = int(slot)
@@ -72,12 +72,22 @@ class Shelf:
             print(f"{device} {slot} Invalid slot index calculated: {slot_index}")
             return None
         
+        # Store device with ticket number (new format only)
+        device_entry = {"device": device, "ticket": ticket_number}
+        
         # Check if adding device would exceed max devices per slot (warning only, since this is an override)
         if not self.slots[slot_index] == None:
             current_count = len(self.slots[slot_index]) if isinstance(self.slots[slot_index], list) else 1
             
-            existing = [str(d).lower() for d in self.slots[slot_index]] # check if device is already in slot
-            if str(device).lower() in existing:
+            # Extract device names for comparison
+            existing_devices = []
+            if isinstance(self.slots[slot_index], list):
+                for d in self.slots[slot_index]:
+                    existing_devices.append(d.get("device", "") if isinstance(d, dict) else "")
+            else:
+                existing_devices.append(self.slots[slot_index].get("device", "") if isinstance(self.slots[slot_index], dict) else "")
+            
+            if str(device).lower() in [str(d).lower() for d in existing_devices if d]:
                 print(f"Device '{device}' already present in slot {slot}; skipping.")
                 return slot_index
 
@@ -90,22 +100,26 @@ class Shelf:
                     newDevices.append(slottedDevice)
             else:
                 newDevices.append(self.slots[slot_index])
-            newDevices.append(device)
+            newDevices.append(device_entry)
             self.slots[slot_index] = newDevices
         else:
-            self.slots[slot_index] = device
+            self.slots[slot_index] = device_entry
         
         self.saveSlots()
         print(f"Device '{device}' assigned to slot {slot} (override)")
         return slot_index
 
-    def assignDevice(self, device):
+    def assignDevice(self, device, ticket_number):
         if self.number_of_devices_per_slot <= 0: return -1
         self.loadSlots()
+        
+        # Store device with ticket number (new format only)
+        device_entry = {"device": device, "ticket": ticket_number}
+        
         if self.number_of_devices_per_slot > 1:
             for i in range(0, len(self.slots)):
                 if self.slots[i] == None:
-                    self.slots[i] = device
+                    self.slots[i] = device_entry
                     self.saveSlots()
                     print(f"Device '{device}' assigned to slot {i + self.slot_start}")
                     return i
@@ -115,7 +129,7 @@ class Shelf:
                         # Slot is a list - check if it has room
                         if len(self.slots[i]) < self.number_of_devices_per_slot:
                             # Has room - add device to list
-                            self.slots[i].append(device)
+                            self.slots[i].append(device_entry)
                             self.saveSlots()
                             print(f"Device '{device}' assigned to slot {i + self.slot_start}")
                             return i
@@ -123,8 +137,8 @@ class Shelf:
                             # Slot is full - continue to next slot
                             continue
                     else:
-                        # Slot has a single device (string) - convert to list and add device
-                        newDevices = [self.slots[i], device]
+                        # Slot has a single device - convert to list and add device
+                        newDevices = [self.slots[i], device_entry]
                         self.slots[i] = newDevices
                         self.saveSlots()
                         print(f"Device '{device}' assigned to slot {i + self.slot_start}")
@@ -132,7 +146,7 @@ class Shelf:
         else:
             for i in range(0, len(self.slots)):
                 if self.slots[i] == None:
-                    self.slots[i] = device
+                    self.slots[i] = device_entry
                     self.saveSlots()
                     print(f"Device '{device}' assigned to slot {i + self.slot_start}")
                     return i
@@ -151,23 +165,80 @@ class Shelf:
             return device
         print("Invalid slot or slot already empty")
         return None
+    
+    def removeDevicesFromClosedTickets(self, active_ticket_numbers: set):
+        """
+        Remove devices from shelves that are associated with closed tickets.
+        Devices whose tickets are not in the active_ticket_numbers set will be removed.
+        """
+        self.loadSlots()
+        removed_count = 0
+        modified = False
+        
+        for slot_index, slot_content in enumerate(self.slots):
+            if slot_content is None:
+                continue
+            
+            # Handle single device
+            if not isinstance(slot_content, list):
+                if isinstance(slot_content, dict):
+                    ticket = slot_content.get("ticket")
+                    if ticket and ticket not in active_ticket_numbers:
+                        device_name = slot_content.get("device", "")
+                        self.slots[slot_index] = None
+                        modified = True
+                        removed_count += 1
+                        print(f"Removed device '{device_name}' from slot {slot_index + self.slot_start} (ticket {ticket} is closed)")
+                continue
+            
+            # Handle list of devices
+            preserved_devices = []
+            for device_entry in slot_content:
+                if isinstance(device_entry, dict):
+                    ticket = device_entry.get("ticket")
+                    if ticket and ticket not in active_ticket_numbers:
+                        device_name = device_entry.get("device", "")
+                        removed_count += 1
+                        print(f"Removed device '{device_name}' from slot {slot_index + self.slot_start} (ticket {ticket} is closed)")
+                        continue
+                preserved_devices.append(device_entry)
+            
+            # Update slot if devices were removed
+            if len(preserved_devices) != len(slot_content):
+                if len(preserved_devices) == 0:
+                    self.slots[slot_index] = None
+                elif len(preserved_devices) == 1:
+                    self.slots[slot_index] = preserved_devices[0]
+                else:
+                    self.slots[slot_index] = preserved_devices
+                modified = True
+        
+        if modified:
+            self.saveSlots()
+        
+        if removed_count > 0:
+            print(f"Removed {removed_count} device(s) from closed tickets on {self.file_name}")
+        
+        return removed_count
 
     def displaySlots(self):
         if self.number_of_devices_per_slot <= 0: return -1
         self.loadSlots()
-        first = False
         for i, device in enumerate(self.slots, 0):
-            if not device == None:
-                status = device
-            elif isinstance(device, Sequence):
-                for slottedDevice in device:
-                    if first == False:
-                        first = True
-                        status = slottedDevice
-                    else:
-                        status = status + f", {slottedDevice}"
-            else:
+            if device == None:
                 status = "Empty"
+            elif isinstance(device, Sequence) and not isinstance(device, str):
+                first = True
+                status = ""
+                for slottedDevice in device:
+                    device_name = slottedDevice.get("device", "") if isinstance(slottedDevice, dict) else ""
+                    if first:
+                        first = False
+                        status = device_name
+                    else:
+                        status = status + f", {device_name}"
+            else:
+                status = device.get("device", "") if isinstance(device, dict) else ""
             print(f"Slot {i + self.slot_start}: {status}")
 
 # Function that returns the shelf that a device should be assigned to
