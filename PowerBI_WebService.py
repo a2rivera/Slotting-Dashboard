@@ -114,7 +114,8 @@ def slotDashboard():
     username = win32api.GetUserName()
     win32api.CloseHandle(handle)
 
-    conn = ldap3.Connection(ldap_server, user=ldap_user, password=ldap_pass, auto_bind=True)
+    # Use the gMSA identity running the IIS application (no explicit credentials)
+    conn = ldap3.Connection(ldap_server, auto_bind=True)
     
     search_filter = f'(sAMAccountName={username})'
     conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
