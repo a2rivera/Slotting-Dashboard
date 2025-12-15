@@ -513,7 +513,7 @@
       else if (String(item.short_description).includes("Ready for Pickup")) {
         type = "phone";
       }
-      SRPSlotting.addDeviceRow({
+      addDeviceRow({
         user: item.requested_for || '', // maps to 'user'
         slot: item.slot || '',          // if you have slot info, otherwise ''
         ticket: item.number || '',      // maps to 'ticket'
