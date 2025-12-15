@@ -8,7 +8,7 @@ from pathlib import Path
 import win32api
 import win32security
 import ldap3
-import json
+import yaml
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_socketio import SocketIO
@@ -18,12 +18,10 @@ from app_helpers import extract_ucd_slot
 from techstop_shelf_assignment import process_slot_tickets, get_tickets
 from techstop_notify_automation import slot_new_device_task
 from shelves_helper import shelves
-with open("config.json", "r") as f:
-    config = json.load(f)
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
 
 ldap_server = config["ldap"]["server"]
-ldap_user = config["ldap"]["username"]
-ldap_pass = config["ldap"]["password"]
 search_base = config["ldap"]["search_base"]
 
 globalResponse = None
@@ -114,7 +112,8 @@ def slotDashboard():
     username = win32api.GetUserName()
     win32api.CloseHandle(handle)
 
-    conn = ldap3.Connection(ldap_server, user=ldap_user, password=ldap_pass, auto_bind=True)
+    # Use the gMSA identity running the IIS application (no explicit credentials)
+    conn = ldap3.Connection(ldap_server, auto_bind=True)
     
     search_filter = f'(sAMAccountName={username})'
     conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
