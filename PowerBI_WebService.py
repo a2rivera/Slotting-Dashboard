@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 
 from pathlib import Path
 
@@ -26,6 +27,8 @@ ldap_pass = config["ldap"]["password"]
 search_base = config["ldap"]["search_base"]
 
 globalResponse = None
+last_refresh_ts = 0.0
+MIN_REFRESH_SECONDS = 30  # throttle manual refreshes to at most once every 30 seconds
 
 #app = Flask(__name__, static_url_path='/static', static_folder="E:\\website\\WWWRoot\\App\\static")
 app = Flask(__name__)
@@ -69,6 +72,39 @@ def getData():
     if globalResponse == None:
         setResponse()
     return jsonify(globalResponse)
+
+
+@app.route("/refresh-data")
+def refreshData():
+    """Force a fresh pull from ServiceNow by calling setResponse, then return latest data.
+
+    This endpoint is throttled so it can't be spammed and hammer ServiceNow.
+    """
+    global last_refresh_ts
+
+    now = time.time()
+    # If we've refreshed too recently, just return the existing cached data
+    if last_refresh_ts and (now - last_refresh_ts) < MIN_REFRESH_SECONDS:
+        remaining = int(MIN_REFRESH_SECONDS - (now - last_refresh_ts))
+        payload = globalResponse or {"result": []}
+        return jsonify(
+            {
+                "result": payload.get("result", []),
+                "throttled": True,
+                "next_allowed_in": max(remaining, 0),
+            }
+        )
+
+    setResponse()
+    last_refresh_ts = now
+    payload = globalResponse or {"result": []}
+    return jsonify(
+        {
+            "result": payload.get("result", []),
+            "throttled": False,
+            "next_allowed_in": MIN_REFRESH_SECONDS,
+        }
+    )
 
 @app.route("/slotting-dashboard")
 def slotDashboard():

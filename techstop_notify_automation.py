@@ -4,6 +4,7 @@ import smtplib
 from email.message import EmailMessage
 
 from app_helpers import assign_device_to_shelf
+from api_client import call_api
 import yaml
 import asyncio
 
