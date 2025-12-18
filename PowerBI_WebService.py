@@ -25,6 +25,7 @@ ldap_server = config["ldap"]["server"]
 search_base = config["ldap"]["search_base"]
 
 globalResponse = None
+globalLoanerData = None
 last_refresh_ts = 0.0
 MIN_REFRESH_SECONDS = 30  # throttle manual refreshes to at most once every 30 seconds
 
@@ -60,6 +61,28 @@ def setResponse():
         print(f"Total devices removed from closed tickets: {total_removed}")
     
     process_slot_tickets()
+
+def get_loaner_data():
+    """Fetch loaner computer data from your data source.
+    
+    TODO: Replace this with actual data source (ServiceNow, database, etc.)
+    Expected return format:
+    [
+        {
+            "name": "LOANER-001",
+            "status": "in use",  # or "in stock", "re-imaging"
+            "date_of_return": "2024-12-31",  # YYYY-MM-DD format
+            "user_assigned_to": "user@srp.gov"  # only if status is "in use"
+        },
+        ...
+    ]
+    """
+    global globalLoanerData
+    # TODO: Replace with actual data fetching logic
+    # For now, return empty list or placeholder data
+    if globalLoanerData is None:
+        globalLoanerData = []
+    return globalLoanerData
 
 @app.route("/")
 def pickUpHome():
@@ -160,6 +183,84 @@ def automatePickUp(taskNumber, userEmail):
             "slotNumber": None,
             "UCD": None
         })
+
+@app.route("/loaner-dashboard")
+def loanerDashboard():
+    """Loaner computer dashboard page."""
+    handle_str = request.headers.get('x-iis-windowsauthtoken', '0')
+    if handle_str and handle_str != '0':
+        try:
+            handle = int(handle_str, 16)
+            win32security.ImpersonateLoggedOnUser(handle)
+            username = win32api.GetUserName()
+            win32api.CloseHandle(handle)
+        except:
+            username = None
+    else:
+        username = None
+
+    email = None
+    if username:
+        try:
+            # Use the gMSA identity running the IIS application (no explicit credentials)
+            ldap_user = "pabtechstop@srp.gov"
+            ldap_pass = "ReturnToChaos26"
+            conn = ldap3.Connection(ldap_server, user=ldap_user, password=ldap_pass, auto_bind=True) # TODO: change to use gMSA identity, currently not working with IIS application pool identity
+            
+            search_filter = f'(sAMAccountName={username})'
+            conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
+
+            if conn.entries:
+                entry = conn.entries[0]
+                email = entry.mail.value or entry.userPrincipalName.value
+        except Exception as e:
+            print(f"Error fetching email for loaner dashboard: {e}")
+
+    loaners = get_loaner_data()
+    data = {
+        "email": email,
+        "loaners": loaners
+    }
+
+    return render_template("loaner_dashboard.html", data=data)
+
+@app.route("/get-loaner-data")
+def getLoanerData():
+    """API endpoint to get loaner data."""
+    loaners = get_loaner_data()
+    return jsonify({"loaners": loaners})
+
+@app.route("/notify-loaner-return", methods=["POST"])
+def notifyLoanerReturn():
+    """API endpoint to send notification to user about returning their loaner computer."""
+    try:
+        data = request.get_json()
+        loaner_name = data.get("loanerName", "")
+        user_email = data.get("userEmail", "")
+
+        if not loaner_name or not user_email:
+            return jsonify({
+                "success": False,
+                "error": "Missing loanerName or userEmail"
+            }), 400
+
+        # TODO: Implement actual email notification logic here
+        # For now, just log it
+        print(f"Notification requested for loaner {loaner_name} to user {user_email}")
+        
+        # Placeholder for email sending logic
+        # You can integrate with your existing email notification system
+        # similar to techstop_notify_automation.py
+        
+        return jsonify({
+            "success": True,
+            "message": f"Notification sent to {user_email} for loaner {loaner_name}"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
     
 scheduler = BackgroundScheduler()
 scheduler.add_job(setResponse, 'interval', minutes=5)
