@@ -18,6 +18,7 @@ from app_helpers import extract_ucd_slot
 from techstop_shelf_assignment import process_slot_tickets, get_tickets
 from techstop_notify_automation import slot_new_device_task
 from shelves_helper import shelves
+from api_client import run_call_sync
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
@@ -62,27 +63,127 @@ def setResponse():
     
     process_slot_tickets()
 
-def get_loaner_data():
-    """Fetch loaner computer data from your data source.
-    
-    TODO: Replace this with actual data source (ServiceNow, database, etc.)
-    Expected return format:
-    [
-        {
-            "name": "LOANER-001",
-            "status": "in use",  # or "in stock", "re-imaging"
-            "date_of_return": "2024-12-31",  # YYYY-MM-DD format
-            "user_assigned_to": "user@srp.gov"  # only if status is "in use"
-        },
-        ...
-    ]
-    """
+def setLoanerResponse():
+    """Fetch and update loaner computer data from API."""
     global globalLoanerData
-    # TODO: Replace with actual data fetching logic
-    # For now, return empty list or placeholder data
-    if globalLoanerData is None:
+    try:
+        # First, fetch all loaner computers
+        call_spec = {
+            "url": "http://configurationitem/table/computer?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000",
+            "headers": {
+                "accept": "application/json",
+                "QueryParams": "sysparm_query=nameLIKETSNBLOAN"
+            },
+            "method": "GET"
+        }
+        
+        response = run_call_sync(call_spec)
+        
+        # Fetch re-imaging tasks to identify loaners being re-imaged
+        reimaging_call_spec = {
+            "url": "http://configurationitem/table/task?SystemID=SOAP-UI&ReferenceID=*&MaxRows=100&KeyName=assignment_group&KeyValue=PAB TechStop Support",
+            "headers": {
+                "Accept": "application/json",
+                "QueryParams": "sysparm_query=short_description=Prepare Loaner&active=true"
+            },
+            "method": "GET"
+        }
+        
+        reimaging_response = run_call_sync(reimaging_call_spec)
+        
+        # Build set of CI names that are being re-imaged
+        reimaging_cis = set()
+        if reimaging_response and "result" in reimaging_response:
+            for task in reimaging_response["result"]:
+                cmdb_ci = task.get("cmdb_ci", "")
+                # Handle both string and object formats
+                if isinstance(cmdb_ci, dict):
+                    ci_name = cmdb_ci.get("value", "") or cmdb_ci.get("display_value", "")
+                else:
+                    ci_name = str(cmdb_ci) if cmdb_ci else ""
+                
+                if ci_name:
+                    reimaging_cis.add(ci_name.strip())
+        
+        if response and "result" in response:
+            loaners = []
+            for computer in response["result"]:
+                # Map computer data to loaner format
+                loaner_name = computer.get("name", "")
+                # Also check u_display_name for matching
+                display_name = computer.get("u_display_name", "") or loaner_name
+                
+                # Check if this loaner is in the re-imaging tasks
+                is_reimaging = (
+                    loaner_name in reimaging_cis or 
+                    display_name in reimaging_cis
+                )
+                
+                # Determine status from hardware_substatus field, but override if re-imaging
+                if is_reimaging:
+                    status = "re-imaging"
+                else:
+                    hardware_substatus = computer.get("hardware_substatus", "").strip() if computer.get("hardware_substatus") else ""
+                    
+                    # Map hardware_substatus to loaner status
+                    # "Available" -> "in stock"
+                    # "In Use" -> "in use"
+                    if hardware_substatus.lower() == "available":
+                        status = "in stock"
+                    elif hardware_substatus.lower() == "in use":
+                        status = "in use"
+                    else:
+                        # Default to "re-imaging" for any other status
+                        status = "re-imaging"
+                
+                # Get user assigned to (if in use)
+                user_assigned = ""
+                if status == "in use":
+                    # Try different possible field names for assigned user
+                    user_assigned = (
+                        computer.get("assigned_to", {}).get("value", "") or
+                        computer.get("u_assigned_to", {}).get("value", "") or
+                        computer.get("assigned_to", "") or
+                        computer.get("u_assigned_to", "") or
+                        ""
+                    )
+                    # If it's a sys_id, you might want to look up the email
+                    # For now, we'll use the value as-is
+                
+                # Get date of return - adjust field name as needed
+                # Common custom fields: u_date_of_return, u_return_date, etc.
+                date_of_return = (
+                    computer.get("u_date_of_return", "") or
+                    computer.get("u_return_date", "") or
+                    computer.get("date_of_return", "") or
+                    ""
+                )
+                
+                # Format date if needed (ServiceNow often returns in YYYY-MM-DD format)
+                if date_of_return and len(date_of_return) > 10:
+                    date_of_return = date_of_return[:10]  # Take first 10 chars (YYYY-MM-DD)
+                
+                loaners.append({
+                    "name": loaner_name,
+                    "status": status,
+                    "date_of_return": date_of_return,
+                    "user_assigned_to": user_assigned
+                })
+            
+            globalLoanerData = loaners
+        else:
+            print("Error: No result in loaner API response")
+            globalLoanerData = []
+    except Exception as e:
+        print(f"Error fetching loaner data: {e}")
         globalLoanerData = []
-    return globalLoanerData
+
+def get_loaner_data():
+    """Get loaner computer data, refreshing if needed."""
+    global globalLoanerData
+    if globalLoanerData is None:
+        setLoanerResponse()
+    return globalLoanerData if globalLoanerData is not None else []
 
 @app.route("/")
 def pickUpHome():
@@ -227,6 +328,8 @@ def loanerDashboard():
 @app.route("/get-loaner-data")
 def getLoanerData():
     """API endpoint to get loaner data."""
+    # Refresh data on each request to ensure it's up to date
+    setLoanerResponse()
     loaners = get_loaner_data()
     return jsonify({"loaners": loaners})
 
@@ -264,8 +367,10 @@ def notifyLoanerReturn():
     
 scheduler = BackgroundScheduler()
 scheduler.add_job(setResponse, 'interval', minutes=5)
+scheduler.add_job(setLoanerResponse, 'interval', minutes=5)
 scheduler.start()
 setResponse()
+setLoanerResponse()
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5001))
