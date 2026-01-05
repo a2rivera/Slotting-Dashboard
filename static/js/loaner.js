@@ -222,6 +222,12 @@
     rows.forEach(tr => {
       const rowStatus = tr.dataset.status;
 
+      // Always hide "not found" status loaners
+      if (rowStatus === 'not found') {
+        tr.style.display = 'none';
+        return;
+      }
+
       let show = true;
       if (state.filter === 'in_stock') {
         show = rowStatus === 'in stock';
@@ -244,13 +250,19 @@
   // ---------- Counters ----------
   function recount() {
     const all = el.rows.querySelectorAll('tr');
-    const total = all.length;
+    let total = 0;
     let inStock = 0;
     let inUse = 0;
     let reimaging = 0;
 
     all.forEach(tr => {
       const status = tr.dataset.status;
+      // Exclude "not found" status from all counts
+      if (status === 'not found') {
+        return;
+      }
+      
+      total++;
       if (status === 'in stock') inStock++;
       else if (status === 'in use') inUse++;
       else if (status === 're-imaging' || status === 'reimaging') reimaging++;

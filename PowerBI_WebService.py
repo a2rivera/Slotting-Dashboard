@@ -126,15 +126,17 @@ def setLoanerResponse():
                     hardware_substatus = computer.get("hardware_substatus", "").strip() if computer.get("hardware_substatus") else ""
                     
                     # Map hardware_substatus to loaner status
-                    # "Available" -> "in stock"
+                    # "Available" or "Available-Used" -> "in stock"
                     # "In Use" -> "in use"
-                    if hardware_substatus.lower() == "available":
+                    # Everything else -> "not found"
+                    hardware_substatus_lower = hardware_substatus.lower()
+                    if hardware_substatus_lower == "available" or hardware_substatus_lower == "available-used":
                         status = "in stock"
-                    elif hardware_substatus.lower() == "in use":
+                    elif hardware_substatus_lower == "in use":
                         status = "in use"
                     else:
-                        # Default to "re-imaging" for any other status
-                        status = "re-imaging"
+                        # If hardware_substatus doesn't match known values or is empty, set to "not found"
+                        status = "not found"
                 
                 # Get user assigned to (if in use)
                 user_assigned = ""
@@ -162,6 +164,10 @@ def setLoanerResponse():
                 # Format date if needed (ServiceNow often returns in YYYY-MM-DD format)
                 if date_of_return and len(date_of_return) > 10:
                     date_of_return = date_of_return[:10]  # Take first 10 chars (YYYY-MM-DD)
+                
+                # Skip loaners with "not found" or null status - don't send to frontend
+                if status == "not found" or status is None or status.lower() == "null":
+                    continue
                 
                 loaners.append({
                     "name": loaner_name,
