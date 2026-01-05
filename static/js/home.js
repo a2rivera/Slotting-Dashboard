@@ -27,11 +27,26 @@
     const trimmed = String(ucd).trim();
     // Try YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return { date: new Date(trimmed + 'T00:00:00'), text: trimmed };
-    // Try M/D or MM/DD (assume current year)
+    // Try M/D or MM/DD (handle year transition intelligently)
     if (/^\d{1,2}\/\d{1,2}$/.test(trimmed)) {
       const [m, d] = trimmed.split('/').map(x => parseInt(x, 10));
-      const y = new Date().getFullYear();
-      return { date: new Date(y, m - 1, d), text: trimmed };
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      
+      // Try current year first
+      let date = new Date(currentYear, m - 1, d);
+      date.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      
+      // If the date is more than 30 days in the future, assume it's from the previous year
+      // This handles year transitions (e.g., "12/26" in January should be Dec 26 of previous year)
+      const daysDiff = (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff > 30) {
+        date = new Date(currentYear - 1, m - 1, d);
+        date.setHours(0, 0, 0, 0);
+      }
+      
+      return { date: date, text: trimmed };
     }
     // Fallback Date parse
     const dt = new Date(trimmed);
