@@ -174,7 +174,7 @@
     return id;
   }
 
-  function showPopup(content) {
+  function showPopup(content, onClose) {
     const modal = document.createElement('div');
     modal.style.position = 'fixed';
     modal.style.top = '0';
@@ -212,6 +212,13 @@
     modal.appendChild(box);
     document.body.appendChild(modal);
 
+    // Use requestAnimationFrame to ensure popup is rendered before calling onClose
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (onClose) onClose();
+      });
+    });
+
     document.getElementById('closePopup').addEventListener('click', () => {
       document.body.removeChild(modal);
     });
@@ -247,10 +254,10 @@
           }
 
           // Show popup confirmation for email sent (no slotting)
-          showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Email notification sent. Device does not require slotting.${data.UCD ? '<br>UCD: ' + data.UCD : ''}`);
-
-          // Stop loading animation
-          btn.classList.remove('loading');
+          showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Email notification sent. Device does not require slotting.${data.UCD ? '<br>UCD: ' + data.UCD : ''}`, () => {
+            // Stop loading animation after popup is shown
+            btn.classList.remove('loading');
+          });
 
           // Remove notify button since notification was sent
           tr.children[5].innerHTML = '<span class="muted">—</span>';
@@ -267,10 +274,10 @@
           badge.textContent = data.UCD;
 
           // Show popup confirmation
-          showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Slot: ${data.slotNumber}<br>UCD: ${data.UCD}`);
-
-          // Stop loading animation
-          btn.classList.remove('loading');
+          showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Slot: ${data.slotNumber}<br>UCD: ${data.UCD}`, () => {
+            // Stop loading animation after popup is shown
+            btn.classList.remove('loading');
+          });
 
           tr.children[5].innerHTML = '<span class="muted">—</span>';
         }
