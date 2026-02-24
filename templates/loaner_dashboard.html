@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SRP TechStop — Loaner Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/loaner.css') }}" />
+</head>
+
+<body>
+  <div class="wrap">
+    <!-- Filters -->
+    <div class="filters" role="toolbar" aria-label="Status Filters">
+      <button class="btn" id="filterInStock">In Stock</button>
+      <button class="btn" id="filterInUse">In Use</button>
+      <button class="btn" id="filterReimaging">Re-imaging</button>
+      <button class="btn clear" id="clearFilters">Clear Filters</button>
+      <button class="btn" id="refreshData">Refresh</button>
+    </div>
+
+    <!-- Metrics -->
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Total Loaners</div>
+        <div class="value" id="totalLoaners">0</div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi in-stock">
+          <div class="k">In Stock</div>
+          <div class="v" id="kpiInStock">0</div>
+        </div>
+        <div class="kpi in-use">
+          <div class="k">In Use</div>
+          <div class="v" id="kpiInUse">0</div>
+        </div>
+        <div class="kpi reimaging">
+          <div class="k">Re-imaging</div>
+          <div class="v" id="kpiReimaging">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table aria-label="Loaner computers table">
+        <thead>
+          <tr>
+            <th class="col-name">Loaner Name</th>
+            <th class="col-status">Status</th>
+            <th class="col-date">Date of Return</th>
+            <th class="col-user">User Assigned To</th>
+            <th class="col-notify">Notify</th>
+          </tr>
+        </thead>
+        <tbody id="loanerRows">
+          <!-- Rows dynamically injected here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    window.__INITIAL_DATA__ = {{ data | tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='js/loaner.js') }}"></script>
+</body>
+
+</html>
+
