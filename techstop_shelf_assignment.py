@@ -78,6 +78,9 @@ def get_tickets():
 
     for result in results:
         for ticket in result["result"]:
+            if str(ticket["state"]).lower() in ["resolved", "closed"]: # if the ticket is cancelled it will not be active so it won't show up in the list, so we only check for resolved and closed
+                print(f"Skipping ticket {ticket['number']} because it is in a closed state")
+                continue
             unique_tickets_by_sys_id[ticket["sys_id"]] = ticket
         #tickets.extend(result.get("result", []))
 
