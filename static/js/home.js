@@ -48,6 +48,15 @@
     return 'ucd-badge ucd-future';
   }
 
+  function extractSlotNumber(slotValue) {
+    if (slotValue === null || slotValue === undefined) return null;
+    if (typeof slotValue === 'number' && Number.isFinite(slotValue)) return slotValue;
+    const match = String(slotValue).match(/\b\d+\b/);
+    if (!match) return null;
+    const parsed = Number(match[0]);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
   function categoryFromSlot(slot) {
     const n = Number(slot);
     if (!Number.isFinite(n)) return 'unassigned';
@@ -217,6 +226,8 @@
     fetch(url)
       .then(res => res.json())
       .then(data => {
+        const parsedSlot = extractSlotNumber(data.slotNumber);
+        const hasValidSlot = parsedSlot !== null;
         // Check if slot is -1 (device doesn't require slotting, e.g., Mac)
         const isNoSlot = data.slotNumber === -1 || data.slotNumber === '-1' || data.slotNumber === null;
 
@@ -239,13 +250,13 @@
 
           // Remove notify button since notification was sent
           tr.children[5].innerHTML = '<span class="muted">—</span>';
-        } else {
+        } else if (hasValidSlot) {
           // Normal slotting flow - update row with slot info
-          tr.dataset.slot = data.slotNumber;
+          tr.dataset.slot = String(parsedSlot);
           tr.dataset.slotted = 'true';
-          tr.dataset.category = categoryFromSlot(data.slotNumber);
+          tr.dataset.category = categoryFromSlot(parsedSlot);
 
-          tr.children[1].textContent = data.slotNumber;
+          tr.children[1].textContent = String(parsedSlot);
 
           const badge = tr.children[3].querySelector('span');
           badge.className = classifyUcdBadge(new Date(data.UCD));
@@ -258,6 +269,10 @@
           btn.classList.remove('loading');
 
           tr.children[5].innerHTML = '<span class="muted">—</span>';
+        } else {
+          // A response message came back without a slot number; keep slot cell empty.
+          tr.dataset.slot = '';
+          tr.children[1].textContent = '';
         }
 
         recount();
