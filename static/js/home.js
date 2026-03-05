@@ -361,10 +361,9 @@
   }
 
   function clearFilters() {
-    state.filter = 'all'; state.category = 'all';
-    [el.filterComputer, el.filterIncident, el.filterPhone].forEach(b => b.classList.remove('active'));
-    [...el.categoryBar.querySelectorAll('.chip')].forEach(c => c.classList.remove('active'));
-    applyFilters();
+    // Route through setters so "no filters" is persisted in localStorage.
+    setFilter('all');
+    setCategory('all');
   }
 
   // ---------- Counters ----------

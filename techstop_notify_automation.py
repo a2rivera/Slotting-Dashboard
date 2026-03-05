@@ -55,10 +55,20 @@ def email(Machine : str = "Undefined", RITM : str = "RITM0000000", Name : str = 
         html_template = file.read()
 
     
+    machine_lower = str(Machine).lower()
+    is_phone_device = ("phone" in machine_lower) or ("iphone" in machine_lower)
+    phone_setup_note = (
+        "Please note: iPhone setup can take up to one hour or more. "
+        "If you are transferring data to a new phone, the process may take longer."
+        if is_phone_device
+        else ""
+    )
+
     html_content = html_template.replace("{{ machine }}", Machine) \
                             .replace("{{ formatted_today_date }}", formattedTodayDate) \
                             .replace("{{ formatted_two_weeks_date }}", formattedTwoWeeksDate) \
-                            .replace("{{ ritm }}", RITM)
+                            .replace("{{ ritm }}", RITM) \
+                            .replace("{{ phone_setup_note }}", phone_setup_note)
 
     
     email.set_content(html_content, subtype="html")
