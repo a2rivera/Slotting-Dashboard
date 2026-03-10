@@ -232,25 +232,41 @@ def refreshData():
 
 @app.route("/slotting-dashboard")
 def slotDashboard():
-    handle_str = request.headers['x-iis-windowsauthtoken']
-    handle = int(handle_str, 16)
-    win32security.ImpersonateLoggedOnUser(handle)
-    username = win32api.GetUserName()
-    win32api.CloseHandle(handle)
+    username = None
+    handle = None
+    impersonating = False
+    handle_str = request.headers.get('x-iis-windowsauthtoken', '0')
+    if handle_str and handle_str != '0':
+        try:
+            handle = int(handle_str, 16)
+            win32security.ImpersonateLoggedOnUser(handle)
+            impersonating = True
+            username = win32api.GetUserName()
+        finally:
+            # Revert before LDAP bind so the process identity (gMSA/app pool) is used.
+            if impersonating:
+                win32security.RevertToSelf()
+            if handle:
+                win32api.CloseHandle(handle)
 
-    # Use the gMSA identity running the IIS application (no explicit credentials)
-    ldap_user = "pabtechstop@srp.gov"
-    ldap_pass = "ReturnToChaos26"
-    conn = ldap3.Connection(ldap_server, user=ldap_user, password=ldap_pass, auto_bind=True) # TODO: change to use gMSA identity, currently not working with IIS application pool identity
-    
-    search_filter = f'(sAMAccountName={username})'
-    conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
+    email = None
+    if username:
+        try:
+            server = ldap3.Server(ldap_server)
+            conn = ldap3.Connection(
+                server,
+                authentication=ldap3.SASL,
+                sasl_mechanism=ldap3.KERBEROS,
+                auto_bind=True
+            )
+            search_filter = f'(sAMAccountName={username})'
+            conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
 
-    if conn.entries:
-        entry = conn.entries[0]
-        email = entry.mail.value or entry.userPrincipalName.value
-    else:
-        email = None
+            if conn.entries:
+                entry = conn.entries[0]
+                email = entry.mail.value or entry.userPrincipalName.value
+        except Exception as e:
+            print(f"Error fetching email for slotting dashboard: {e}")
 
     data = {
         "email":  email,
@@ -292,24 +308,34 @@ def loanerDashboard():
     """Loaner computer dashboard page."""
     handle_str = request.headers.get('x-iis-windowsauthtoken', '0')
     if handle_str and handle_str != '0':
+        handle = None
+        impersonating = False
         try:
             handle = int(handle_str, 16)
             win32security.ImpersonateLoggedOnUser(handle)
+            impersonating = True
             username = win32api.GetUserName()
-            win32api.CloseHandle(handle)
-        except:
+        except Exception:
             username = None
+        finally:
+            # Revert before LDAP bind so the process identity (gMSA/app pool) is used.
+            if impersonating:
+                win32security.RevertToSelf()
+            if handle:
+                win32api.CloseHandle(handle)
     else:
         username = None
 
     email = None
     if username:
         try:
-            # Use the gMSA identity running the IIS application (no explicit credentials)
-            ldap_user = "pabtechstop@srp.gov"
-            ldap_pass = "ReturnToChaos26"
-            conn = ldap3.Connection(ldap_server, user=ldap_user, password=ldap_pass, auto_bind=True) # TODO: change to use gMSA identity, currently not working with IIS application pool identity
-            
+            server = ldap3.Server(ldap_server)
+            conn = ldap3.Connection(
+                server,
+                authentication=ldap3.SASL,
+                sasl_mechanism=ldap3.KERBEROS,
+                auto_bind=True
+            )
             search_filter = f'(sAMAccountName={username})'
             conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
 
