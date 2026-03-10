@@ -299,6 +299,9 @@ def slotDashboard():
 def automatePickUp(taskNumber, userEmail):
     try:
         safe_user_email = normalize_optional_email(userEmail)
+        if safe_user_email is None:
+            # Fallback to resolving the current authenticated user email server-side.
+            safe_user_email = get_request_user_email()
         requestedFor, CI, slotNumber, UCD = slot_new_device_task(str(taskNumber), safe_user_email)
         print(requestedFor)
         print(CI)
