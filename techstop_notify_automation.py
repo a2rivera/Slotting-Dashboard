@@ -18,6 +18,20 @@ def slot_new_device(task: dict):
     """
     return asyncio.run(assign_device_to_shelf(task, override_mode=False))
 
+def normalize_optional_email(value: str = None):
+    """Normalize optional email strings from URL/JS placeholders."""
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if normalized.lower() in {"none", "null", "undefined"}:
+        return None
+    if "@" not in normalized:
+        return None
+    return normalized
+
 def email(Machine : str = "Undefined", RITM : str = "RITM0000000", Name : str = None, userEmail : str = None):
 
     spec = {
@@ -48,7 +62,9 @@ def email(Machine : str = "Undefined", RITM : str = "RITM0000000", Name : str = 
     email["Subject"] = f"Your New {Machine} is Ready for Pickup: {RITM}"
     email["From"] = "PABTechStop@srpnet.com"
     email["To"] = sendTo
-    email["Bcc"] = userEmail
+    normalized_bcc = normalize_optional_email(userEmail)
+    if normalized_bcc:
+        email["Bcc"] = normalized_bcc
 
     
     with open("email_template.html", "r") as file:
@@ -96,8 +112,7 @@ def update_snow_ticket(sysID: str = None, shortDescription: str = None):
 def slot_new_device_task(task: str = None, userEmail : str = None):
     if task is None:
         return
-    if userEmail is None:
-        return
+    userEmail = normalize_optional_email(userEmail)
     
     spec = {
         "url": "http://configurationitem/table/task?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue=PAB TechStop Support",

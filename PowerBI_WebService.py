@@ -16,7 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from app_helpers import extract_ucd_slot
 from techstop_shelf_assignment import process_slot_tickets, get_tickets
-from techstop_notify_automation import slot_new_device_task
+from techstop_notify_automation import slot_new_device_task, normalize_optional_email
 from shelves_helper import shelves
 from api_client import run_call_sync
 with open("config.yaml", "r") as f:
@@ -298,7 +298,8 @@ def slotDashboard():
 @app.route("/<taskNumber>/<userEmail>")
 def automatePickUp(taskNumber, userEmail):
     try:
-        requestedFor, CI, slotNumber, UCD = slot_new_device_task(str(taskNumber), userEmail)
+        safe_user_email = normalize_optional_email(userEmail)
+        requestedFor, CI, slotNumber, UCD = slot_new_device_task(str(taskNumber), safe_user_email)
         print(requestedFor)
         print(CI)
         print(slotNumber)
