@@ -187,6 +187,60 @@ def get_loaner_data():
         setLoanerResponse()
     return globalLoanerData if globalLoanerData is not None else []
 
+def get_username_from_windows_auth_header():
+    """Resolve the IIS-authenticated Windows username from the request token."""
+    handle = None
+    impersonating = False
+    handle_str = request.headers.get('x-iis-windowsauthtoken', '0')
+    if not handle_str or handle_str == '0':
+        return None
+
+    try:
+        handle = int(handle_str, 16)
+        win32security.ImpersonateLoggedOnUser(handle)
+        impersonating = True
+        return win32api.GetUserName()
+    except Exception:
+        return None
+    finally:
+        # Revert before LDAP bind so the process identity (gMSA/app pool) is used.
+        if impersonating:
+            win32security.RevertToSelf()
+        if handle:
+            win32api.CloseHandle(handle)
+
+def get_email_for_samaccount(username):
+    """Lookup email attributes in AD using app pool identity (gMSA)."""
+    if not username:
+        return None
+
+    server = ldap3.Server(ldap_server)
+    conn = ldap3.Connection(
+        server,
+        authentication=ldap3.SASL,
+        sasl_mechanism=ldap3.KERBEROS,
+        auto_bind=True
+    )
+    search_filter = f'(sAMAccountName={username})'
+    conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
+
+    if conn.entries:
+        entry = conn.entries[0]
+        return entry.mail.value or entry.userPrincipalName.value
+    return None
+
+def get_request_user_email():
+    """Get current request user's email from IIS token + LDAP."""
+    username = get_username_from_windows_auth_header()
+    if not username:
+        return None
+
+    try:
+        return get_email_for_samaccount(username)
+    except Exception as e:
+        print(f"Error fetching email for user {username}: {e}")
+        return None
+
 @app.route("/")
 def pickUpHome():
     return redirect(url_for("slotDashboard"))
@@ -232,41 +286,7 @@ def refreshData():
 
 @app.route("/slotting-dashboard")
 def slotDashboard():
-    username = None
-    handle = None
-    impersonating = False
-    handle_str = request.headers.get('x-iis-windowsauthtoken', '0')
-    if handle_str and handle_str != '0':
-        try:
-            handle = int(handle_str, 16)
-            win32security.ImpersonateLoggedOnUser(handle)
-            impersonating = True
-            username = win32api.GetUserName()
-        finally:
-            # Revert before LDAP bind so the process identity (gMSA/app pool) is used.
-            if impersonating:
-                win32security.RevertToSelf()
-            if handle:
-                win32api.CloseHandle(handle)
-
-    email = None
-    if username:
-        try:
-            server = ldap3.Server(ldap_server)
-            conn = ldap3.Connection(
-                server,
-                authentication=ldap3.SASL,
-                sasl_mechanism=ldap3.KERBEROS,
-                auto_bind=True
-            )
-            search_filter = f'(sAMAccountName={username})'
-            conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
-
-            if conn.entries:
-                entry = conn.entries[0]
-                email = entry.mail.value or entry.userPrincipalName.value
-        except Exception as e:
-            print(f"Error fetching email for slotting dashboard: {e}")
+    email = get_request_user_email()
 
     data = {
         "email":  email,
@@ -306,44 +326,7 @@ def automatePickUp(taskNumber, userEmail):
 @app.route("/loaner-dashboard")
 def loanerDashboard():
     """Loaner computer dashboard page."""
-    handle_str = request.headers.get('x-iis-windowsauthtoken', '0')
-    if handle_str and handle_str != '0':
-        handle = None
-        impersonating = False
-        try:
-            handle = int(handle_str, 16)
-            win32security.ImpersonateLoggedOnUser(handle)
-            impersonating = True
-            username = win32api.GetUserName()
-        except Exception:
-            username = None
-        finally:
-            # Revert before LDAP bind so the process identity (gMSA/app pool) is used.
-            if impersonating:
-                win32security.RevertToSelf()
-            if handle:
-                win32api.CloseHandle(handle)
-    else:
-        username = None
-
-    email = None
-    if username:
-        try:
-            server = ldap3.Server(ldap_server)
-            conn = ldap3.Connection(
-                server,
-                authentication=ldap3.SASL,
-                sasl_mechanism=ldap3.KERBEROS,
-                auto_bind=True
-            )
-            search_filter = f'(sAMAccountName={username})'
-            conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
-
-            if conn.entries:
-                entry = conn.entries[0]
-                email = entry.mail.value or entry.userPrincipalName.value
-        except Exception as e:
-            print(f"Error fetching email for loaner dashboard: {e}")
+    email = get_request_user_email()
 
     loaners = get_loaner_data()
     data = {
