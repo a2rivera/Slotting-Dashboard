@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+from urllib.parse import urlparse
 
 from pathlib import Path
 
@@ -8,6 +9,8 @@ from pathlib import Path
 import win32api
 import win32security
 import ldap3
+import dns.resolver
+from ldap3.utils.conv import escape_filter_chars
 import yaml
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for
@@ -209,19 +212,76 @@ def get_username_from_windows_auth_header():
         if handle:
             win32api.CloseHandle(handle)
 
+def build_ldap_server():
+    """Build an ldap3 Server, preferring a real DC resolved from AD DNS SRV."""
+    raw_server = str(ldap_server).strip()
+    use_ssl = raw_server.lower().startswith("ldaps://")
+    ad_domain = ".".join(
+        part.split("=", 1)[1].strip()
+        for part in str(search_base).split(",")
+        if part.strip().lower().startswith("dc=")
+    )
+
+    host = None
+    port = None
+
+    if ad_domain:
+        try:
+            srv_name = f"_ldap._tcp.dc._msdcs.{ad_domain}"
+            answers = dns.resolver.resolve(srv_name, "SRV")
+            if answers:
+                host = str(answers[0].target).rstrip(".")
+        except Exception:
+            host = None
+
+    if not host:
+        host = raw_server
+        if "://" in raw_server:
+            parsed = urlparse(raw_server)
+            host = parsed.hostname or raw_server
+            port = parsed.port
+        elif ":" in raw_server and "/" not in raw_server:
+            host_part, port_part = raw_server.rsplit(":", 1)
+            if port_part.isdigit():
+                host = host_part
+                port = int(port_part)
+
+    server_kwargs = {"host": host, "use_ssl": use_ssl}
+    if port:
+        server_kwargs["port"] = port
+    return ldap3.Server(**server_kwargs)
+
 def get_email_for_samaccount(username):
     """Lookup email attributes in AD using app pool identity (gMSA)."""
     if not username:
         return None
 
-    server = ldap3.Server(ldap_server)
+    raw_username = str(username).strip()
+    if not raw_username:
+        return None
+
+    samaccount = raw_username.split("\\")[-1].split("@")[0].strip()
+    filters = []
+
+    if samaccount:
+        filters.append(f"(sAMAccountName={escape_filter_chars(samaccount)})")
+    if "@" in raw_username:
+        escaped_raw = escape_filter_chars(raw_username)
+        filters.append(f"(userPrincipalName={escaped_raw})")
+        filters.append(f"(mail={escaped_raw})")
+
+    if not filters:
+        return None
+
+    search_filter = filters[0] if len(filters) == 1 else f"(|{''.join(filters)})"
+
+    server = build_ldap_server()
     conn = ldap3.Connection(
         server,
         authentication=ldap3.SASL,
-        sasl_mechanism=ldap3.KERBEROS,
+        sasl_mechanism="GSSAPI",
         auto_bind=True
     )
-    search_filter = f'(sAMAccountName={username})'
     conn.search(search_base, search_filter, attributes=['mail', 'userPrincipalName'])
 
     if conn.entries:
@@ -286,7 +346,13 @@ def refreshData():
 
 @app.route("/slotting-dashboard")
 def slotDashboard():
-    email = get_request_user_email()
+    username = get_username_from_windows_auth_header()
+    email = None
+    if username:
+        try:
+            email = get_email_for_samaccount(username)
+        except Exception as e:
+            print(f"Error fetching email for slotting dashboard: {e}")
 
     data = {
         "email":  email,

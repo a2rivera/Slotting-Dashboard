@@ -1,5 +1,5 @@
 ldap:
-  server: "ldap://adapp.srp.gov"  # server used to bind to AD with pabtechstop account (need to change to gMSA)
+  server: "srpisb22.srp.gov"  # server used to bind to AD with pabtechstop account (need to change to gMSA)
   search_base: "dc=srp,dc=gov"    # search base to search the user credentials (retrieves their email)
 
 # shelf = [total_slots, starting_slot, type_of_device, #_of_devices_per_slot]
