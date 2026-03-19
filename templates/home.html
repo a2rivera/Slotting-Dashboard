@@ -43,6 +43,15 @@
       <button class="btn" id="filterComputer">Computer</button>
       <button class="btn" id="filterIncident">Incident</button>
       <button class="btn" id="filterPhone">Phone</button>
+      <select class="btn filter-select" id="filterLocation" aria-label="Filter by location">
+        <option value="all">All Locations</option>
+        <option value="PAB">PAB</option>
+        <option value="SSW">SSW</option>
+        <option value="EVS">EVS</option>
+        <option value="WVS">WVS</option>
+        <option value="TSC">TSC</option>
+        <option value="XCT">XCT</option>
+      </select>
       <button class="btn clear" id="clearFilters">Clear Filters</button>
       <button class="btn" id="refreshData">Refresh</button>
     </div>
@@ -57,6 +66,7 @@
             <th>Ticket</th>
             <th class="col-ucd">UCD</th>
             <th>Config. Item</th>
+            <th>Location</th>
             <th>Notify</th>
           </tr>
         </thead>

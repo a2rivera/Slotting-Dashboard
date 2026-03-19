@@ -6,6 +6,32 @@ import yaml
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
+MOBILE_ASSIGNMENT_GROUPS = [
+    "SSW Mobile TechStop",
+    "EVS Mobile TechStop",
+    "WVS Mobile TechStop",
+    "TSC Mobile TechStop",
+    "XCT Mobile TechStop",
+]
+
+LOCATION_BY_ASSIGNMENT_GROUP = {
+    "PAB TechStop Support": "PAB",
+    "SSW Mobile TechStop": "SSW",
+    "EVS Mobile TechStop": "EVS",
+    "WVS Mobile TechStop": "WVS",
+    "TSC Mobile TechStop": "TSC",
+    "XCT Mobile TechStop": "XCT",
+}
+
+def normalize_assignment_group(value):
+    if isinstance(value, dict):
+        return str(value.get("display_value") or value.get("value") or "").strip()
+    return str(value or "").strip()
+
+def get_pickup_location(assignment_group):
+    group_name = normalize_assignment_group(assignment_group)
+    return LOCATION_BY_ASSIGNMENT_GROUP.get(group_name, "PAB")
+
 async def assign_task_slot(task: dict):
     """
     Wrapper function for override mode (backward compatibility).
@@ -61,15 +87,17 @@ def get_tickets():
     ]
     
     for key_words in config["key_words"]:
-        spec = {
-            "url": "http://configurationitem/table/task?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue=PAB TechStop Support",
-            "headers": {
-                "accept": "application/json",
-                "QueryParams": f"sysparm_query=short_descriptionLIKE{key_words}&active=true&sys_class_name=Catalog Task"
-            },
-            "method": "GET"
-        }
-        call_specs.append(spec)
+        assignment_groups = ["PAB TechStop Support", "TechStop Hardware Support", *MOBILE_ASSIGNMENT_GROUPS]
+        for assignment_group in assignment_groups:
+            spec = {
+                "url": f"http://configurationitem/table/task?SystemID=SOAP-UI&ReferenceID=*&MaxRows=1000&KeyName=assignment_group&KeyValue={assignment_group}",
+                "headers": {
+                    "accept": "application/json",
+                    "QueryParams": f"sysparm_query=short_descriptionLIKE{key_words}&active=true&sys_class_name=Catalog Task"
+                },
+                "method": "GET"
+            }
+            call_specs.append(spec)
 
     results = run_calls_sync(call_specs=call_specs)
 
@@ -81,6 +109,7 @@ def get_tickets():
             if str(ticket["state"]).lower() in ["resolved", "closed"]: # if the ticket is cancelled it will not be active so it won't show up in the list, so we only check for resolved and closed
                 print(f"Skipping ticket {ticket['number']} because it is in a closed state")
                 continue
+            ticket["location"] = get_pickup_location(ticket.get("assignment_group"))
             unique_tickets_by_sys_id[ticket["sys_id"]] = ticket
         #tickets.extend(result.get("result", []))
 
@@ -90,6 +119,9 @@ def get_tickets():
 async def process_tickets(tickets):
     tasks = []
     for ticket in tickets:
+        # Only PAB tickets participate in true slotting.
+        if get_pickup_location(ticket.get("assignment_group")) != "PAB":
+            continue
         if "TASK" in str(ticket["number"]):
             tasks.append(assign_task_slot(ticket))
         elif "INC" in str(ticket["number"]):

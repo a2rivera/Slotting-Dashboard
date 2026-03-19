@@ -170,6 +170,11 @@ body {
   color: #fff;
 }
 
+.filter-select {
+  min-width: 150px;
+  padding-right: 30px;
+}
+
 /* Table */
 .table-wrap {
   background: var(--panel);

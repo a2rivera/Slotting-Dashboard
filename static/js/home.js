@@ -9,6 +9,7 @@
     filterComputer: document.getElementById('filterComputer'),
     filterIncident: document.getElementById('filterIncident'),
     filterPhone: document.getElementById('filterPhone'),
+    filterLocation: document.getElementById('filterLocation'),
     clearFilters: document.getElementById('clearFilters'),
     refresh: document.getElementById('refreshData'),
     categoryBar: document.getElementById('categoryBar')
@@ -17,6 +18,7 @@
   const state = {
     filter: 'all',      // 'computer' | 'incident' | 'phone' | 'all'
     category: 'all',    // 'elitebooks'|'zbooks'|'toughbooks'|'repaired'|'desktops'|'phones'|'all'
+    location: 'all',    // 'all'|'PAB'|'SSW'|'EVS'|'WVS'|'TSC'|'XCT'
     idSeq: 0
   };
 
@@ -82,7 +84,7 @@
   }
 
   // ---------- Row factory ----------
-  function addDeviceRow({ user, slot, ticket, ucd, configItem, type, incident = false, category, sys_id }) {
+  function addDeviceRow({ user, slot, ticket, ucd, configItem, location, type, incident = false, category, sys_id }) {
     const id = `row_${++state.idSeq}`;
 
     const tr = document.createElement('tr');
@@ -99,6 +101,7 @@
     tr.dataset.slotted = slotted ? 'true' : 'false';
     tr.dataset.ticket = ticket || '';
     tr.dataset.slot = slotted ? String(slot) : '';
+    tr.dataset.location = String(location || 'PAB').toUpperCase();
 
     // Cells
     // User
@@ -148,6 +151,11 @@
     const tdCfg = document.createElement('td');
     tdCfg.textContent = configItem || '';
     tr.appendChild(tdCfg);
+
+    // Location
+    const tdLocation = document.createElement('td');
+    tdLocation.textContent = location || 'PAB';
+    tr.appendChild(tdLocation);
 
     // Notify
     const tdNotify = document.createElement('td');
@@ -243,13 +251,13 @@
           }
 
           // Show popup confirmation for email sent (no slotting)
-          showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Email notification sent. Device does not require slotting.${data.UCD ? '<br>UCD: ' + data.UCD : ''}`);
+          showPopup(`Customer: ${data.requestedFor}<br>Device: ${data.CI}<br>Email notification sent. No slot assignment needed for this location.${data.UCD ? '<br>UCD: ' + data.UCD : ''}`);
 
           // Stop loading animation
           btn.classList.remove('loading');
 
           // Remove notify button since notification was sent
-          tr.children[5].innerHTML = '<span class="muted">—</span>';
+          tr.children[6].innerHTML = '<span class="muted">—</span>';
         } else if (hasValidSlot) {
           // Normal slotting flow - update row with slot info
           tr.dataset.slot = String(parsedSlot);
@@ -268,7 +276,7 @@
           // Stop loading animation
           btn.classList.remove('loading');
 
-          tr.children[5].innerHTML = '<span class="muted">—</span>';
+          tr.children[6].innerHTML = '<span class="muted">—</span>';
         } else {
           // A response message came back without a slot number; keep slot cell empty.
           tr.dataset.slot = '';
@@ -316,7 +324,7 @@
     // Update Slot cell (index 1)
     tr.children[1].textContent = String(newSlot);
     // Replace Notify cell with —
-    const tdNotify = tr.children[5];
+    const tdNotify = tr.children[6];
     tdNotify.innerHTML = '<span class="muted">—</span>';
 
     // Emit event for host script
@@ -338,6 +346,7 @@
       const rowType = tr.dataset.type; // 'computer' | 'phone'
       const rowIncident = tr.dataset.incident === 'true';
       const rowCategory = tr.dataset.category;
+      const rowLocation = (tr.dataset.location || 'PAB').toUpperCase();
 
       // Filter predicate
       let show = true;
@@ -356,6 +365,11 @@
         show = show && (rowType === 'computer') && rowIncident;
       }
 
+      // Location filter
+      if (state.location !== 'all') {
+        show = show && (rowLocation === state.location);
+      }
+
       tr.style.display = show ? '' : 'none';
     });
   }
@@ -364,6 +378,7 @@
     // Route through setters so "no filters" is persisted in localStorage.
     setFilter('all');
     setCategory('all');
+    setLocation('all');
   }
 
   // ---------- Counters ----------
@@ -399,10 +414,23 @@
     applyFilters();
   }
 
+  function setLocation(location) {
+    const normalized = String(location || 'all').toUpperCase();
+    state.location = (normalized === 'ALL') ? 'all' : normalized;
+    localStorage.setItem('locationPreference', state.location); // Save location
+    if (el.filterLocation) {
+      el.filterLocation.value = state.location;
+    }
+    applyFilters();
+  }
+
   // Wire UI
   el.filterComputer.addEventListener('click', () => setFilter(state.filter === 'computer' ? 'all' : 'computer'));
   el.filterIncident.addEventListener('click', () => setFilter(state.filter === 'incident' ? 'all' : 'incident'));
   el.filterPhone.addEventListener('click', () => setFilter(state.filter === 'phone' ? 'all' : 'phone'));
+  if (el.filterLocation) {
+    el.filterLocation.addEventListener('change', (e) => setLocation(e.target.value));
+  }
   el.clearFilters.addEventListener('click', clearFilters);
   el.categoryBar.addEventListener('click', (e) => {
     const chip = e.target.closest('.chip');
@@ -504,8 +532,10 @@
   // Restore filter and category on load
   const savedFilter = localStorage.getItem('filterPreference');
   const savedCategory = localStorage.getItem('categoryPreference');
+  const savedLocation = localStorage.getItem('locationPreference');
   if (savedFilter) setFilter(savedFilter);
   if (savedCategory) setCategory(savedCategory);
+  if (savedLocation) setLocation(savedLocation);
 
   function renderTable(data) {
     // Clear all current rows
@@ -533,6 +563,7 @@
         ticket: item.number || '',      // maps to 'ticket'
         ucd: item.ucd || '',       // maps to 'ucd'
         configItem: item.cmdb_ci || '', // maps to 'configItem'
+        location: item.location || 'PAB',
         type: type,               // or infer from your data if available
         incident: incident,                // or infer from your data if available
         category: '',                    // or infer from your data if available

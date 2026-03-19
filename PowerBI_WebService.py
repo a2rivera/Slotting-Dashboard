@@ -376,7 +376,7 @@ def automatePickUp(taskNumber, userEmail):
         #return f"Customer: {requestedFor}<br>Device Name: {CI}<br>Slot: {slotNumber}<br>UCD: {UCD}"
         for item in globalResponse["result"]:
             if item["number"] == taskNumber:
-                item["slot"] = slotNumber
+                item["slot"] = "" if str(slotNumber) == "-1" else slotNumber
                 item["ucd"] = UCD
 
         return jsonify({
