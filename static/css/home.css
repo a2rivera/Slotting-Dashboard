@@ -244,6 +244,16 @@ tbody tr:nth-child(even) {
   color: #fff;
 }
 
+.ticket-ref {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.ticket-req {
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .link {
   color: var(--link);
   text-decoration: none;

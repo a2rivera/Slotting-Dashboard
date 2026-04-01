@@ -17,7 +17,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_socketio import SocketIO
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from app_helpers import extract_ucd_slot
+from app_helpers import extract_ucd_slot, normalize_cmdb_ci_display, normalize_request_number_display
 from techstop_shelf_assignment import process_slot_tickets, get_tickets
 from techstop_notify_automation import slot_new_device_task, normalize_optional_email
 from shelves_helper import shelves
@@ -50,6 +50,8 @@ def setResponse():
         slot, ucd = extract_ucd_slot(item.get('short_description', ''))
         item["slot"] = slot
         item["ucd"] = ucd
+        item["config_item"] = normalize_cmdb_ci_display(item)
+        item["request_number"] = normalize_request_number_display(item)
     globalResponse = formatted_response
     
     # Build set of active ticket numbers

@@ -83,8 +83,46 @@
     }
   }
 
+  function snRefToString(ref) {
+    if (ref == null || ref === '') return '';
+    if (typeof ref === 'object') {
+      const dv = String(ref.display_value || '').trim();
+      const v = String(ref.value || '').trim();
+      if (dv) return dv;
+      if (v && v.length !== 32) return v;
+      return '';
+    }
+    const s = String(ref).trim();
+    if (s.toLowerCase() === 'none' || s.toLowerCase() === 'null') return '';
+    return s;
+  }
+
+  function resolveConfigItemDisplay(item) {
+    if (item.config_item != null && String(item.config_item).trim() !== '') {
+      return String(item.config_item).trim();
+    }
+    for (const key of ['cmdb_ci', 'asset', 'u_configuration_item', 'affected_ci']) {
+      const label = snRefToString(item[key]);
+      if (label) return label;
+    }
+    return '';
+  }
+
+  function resolveRequestNumberDisplay(item) {
+    if (item.request_number != null && String(item.request_number).trim() !== '') {
+      return String(item.request_number).trim();
+    }
+    const ri = snRefToString(item.request_item);
+    if (ri && ri.toUpperCase().includes('RITM')) return ri;
+    const par = snRefToString(item.parent);
+    if (par && par.toUpperCase().includes('RITM')) return par;
+    if (ri) return ri;
+    if (par) return par;
+    return '';
+  }
+
   // ---------- Row factory ----------
-  function addDeviceRow({ user, slot, ticket, ucd, configItem, location, type, incident = false, category, sys_id }) {
+  function addDeviceRow({ user, slot, ticket, ucd, configItem, requestNumber, location, type, incident = false, category, sys_id }) {
     const id = `row_${++state.idSeq}`;
 
     const tr = document.createElement('tr');
@@ -115,10 +153,11 @@
     tdSlot.textContent = slotted ? String(slot) : '';
     tr.appendChild(tdSlot);
 
-    // Ticket
+    // Ticket (+ request / RITM when present)
     const tdTicket = document.createElement('td');
     if (ticket) {
-      // If your environment can link to tickets, replace '#' with your URL pattern.
+      const wrap = document.createElement('span');
+      wrap.className = 'ticket-ref';
       const a = document.createElement('a');
       a.href = '#';
       a.className = 'link';
@@ -132,7 +171,16 @@
       a.title = 'Open ticket';
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      tdTicket.appendChild(a);
+      wrap.appendChild(a);
+      const req = (requestNumber && String(requestNumber).trim()) ? String(requestNumber).trim() : '';
+      if (req) {
+        const reqSpan = document.createElement('span');
+        reqSpan.className = 'ticket-req';
+        reqSpan.textContent = ` · ${req}`;
+        reqSpan.title = 'Request / RITM';
+        wrap.appendChild(reqSpan);
+      }
+      tdTicket.appendChild(wrap);
     } else {
       tdTicket.innerHTML = '<span class="muted">—</span>';
     }
@@ -562,7 +610,8 @@
         slot: item.slot || '',          // if you have slot info, otherwise ''
         ticket: item.number || '',      // maps to 'ticket'
         ucd: item.ucd || '',       // maps to 'ucd'
-        configItem: item.cmdb_ci || '', // maps to 'configItem'
+        configItem: resolveConfigItemDisplay(item),
+        requestNumber: resolveRequestNumberDisplay(item),
         location: item.location || 'PAB',
         type: type,               // or infer from your data if available
         incident: incident,                // or infer from your data if available

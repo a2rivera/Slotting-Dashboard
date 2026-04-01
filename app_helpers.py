@@ -16,6 +16,51 @@ def extract_ucd_slot(short_description: str = None):
     ucd = ucd_match.group(1) if ucd_match else None
     return slot, ucd
 
+
+def _sn_reference_to_str(value) -> str:
+    """ServiceNow reference fields often arrive as dicts with display_value / value."""
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        dv = str(value.get("display_value") or "").strip()
+        v = str(value.get("value") or "").strip()
+        if dv:
+            return dv
+        # Avoid showing raw 32-char sys_ids when display is missing
+        if v and len(v) != 32:
+            return v
+        return ""
+    s = str(value).strip()
+    if s.lower() in ("none", "null", "{}"):
+        return ""
+    return s
+
+
+def normalize_cmdb_ci_display(task: dict) -> str:
+    """Human-readable configuration item for the dashboard (works for all locations)."""
+    for key in ("cmdb_ci", "asset", "u_configuration_item", "affected_ci"):
+        if key not in task:
+            continue
+        label = _sn_reference_to_str(task.get(key))
+        if label:
+            return label
+    return ""
+
+
+def normalize_request_number_display(task: dict) -> str:
+    """RITM / request reference for display next to the task number."""
+    ri = _sn_reference_to_str(task.get("request_item"))
+    if ri and "RITM" in ri.upper():
+        return ri
+    par = _sn_reference_to_str(task.get("parent"))
+    if par and "RITM" in par.upper():
+        return par
+    if ri:
+        return ri
+    if par:
+        return par
+    return ""
+
 def find_key_words(task : dict):
     key_words_found = False
     key_words_found_str = ""
