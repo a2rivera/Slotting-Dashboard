@@ -18,7 +18,6 @@ from flask_socketio import SocketIO
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app_helpers import extract_ucd_slot, normalize_cmdb_ci_display, normalize_request_number_display
-from ci_refresh_worker import enqueue_missing_ci_tasks
 from techstop_shelf_assignment import process_slot_tickets, get_tickets
 from techstop_notify_automation import slot_new_device_task, normalize_optional_email
 from shelves_helper import shelves
@@ -54,12 +53,6 @@ def setResponse():
         item["config_item"] = normalize_cmdb_ci_display(item)
         item["request_number"] = normalize_request_number_display(item)
     globalResponse = formatted_response
-
-    # Non-blocking background poke: for tasks missing CI, toggle state to trigger CI population.
-    try:
-        enqueue_missing_ci_tasks(tickets)
-    except Exception as e:
-        print(f"CI refresh enqueue failed: {e}")
     
     # Build set of active ticket numbers
     active_ticket_numbers = {str(ticket["number"]) for ticket in tickets}
