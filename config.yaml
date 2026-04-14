@@ -13,7 +13,7 @@ shelf_objects:
   mac_shelf: [0, 0, "Mac", 0] # Mac shelf is used for only emailing the user, it is not used for slotting, that is why it is set to 0
 
 # task key works, should be lowercase
-key_words: ["techstop asset pickup", "ready for pickup", "techstop computer pickup"]
+key_words: ["techstop asset pickup", "ready for pickup", "techstop computer pickup", "mts mobile device pickup", ]
 
 # for every shelf object, there is a shelf_assignment if we want to notify/slot to it directly
 # shelf_name = [[key_words], shelf_name]
