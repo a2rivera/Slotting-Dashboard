@@ -37,7 +37,7 @@ shelf_assignment:
     - ["macbook", "techstop computer pickup"]
     - "mac_shelf"
   smart_phone:
-    - ["smartphone", "iphone", "ready for pickup"]
+    - ["smartphone", "iphone", "ready for pickup: apple iphone", "mts mobile device pickup"]
     - "phone_shelf"
 
 # Overflow handling (order matters; first match wins)

@@ -166,10 +166,9 @@ class Shelf:
         print("Invalid slot or slot already empty")
         return None
     
-    def removeDevicesFromClosedTickets(self, active_ticket_numbers: set):
+    def removeDevicesNotInTicketSet(self, valid_ticket_numbers: set, removal_reason: str):
         """
-        Remove devices from shelves that are associated with closed tickets.
-        Devices whose tickets are not in the active_ticket_numbers set will be removed.
+        Remove devices from shelves whose tickets are not in the valid ticket set.
         """
         self.loadSlots()
         removed_count = 0
@@ -183,12 +182,12 @@ class Shelf:
             if not isinstance(slot_content, list):
                 if isinstance(slot_content, dict):
                     ticket = slot_content.get("ticket")
-                    if ticket and ticket not in active_ticket_numbers:
+                    if ticket and ticket not in valid_ticket_numbers:
                         device_name = slot_content.get("device", "")
                         self.slots[slot_index] = None
                         modified = True
                         removed_count += 1
-                        print(f"Removed device '{device_name}' from slot {slot_index + self.slot_start} (ticket {ticket} is closed)")
+                        print(f"Removed device '{device_name}' from slot {slot_index + self.slot_start} (ticket {ticket} {removal_reason})")
                 continue
             
             # Handle list of devices
@@ -196,10 +195,10 @@ class Shelf:
             for device_entry in slot_content:
                 if isinstance(device_entry, dict):
                     ticket = device_entry.get("ticket")
-                    if ticket and ticket not in active_ticket_numbers:
+                    if ticket and ticket not in valid_ticket_numbers:
                         device_name = device_entry.get("device", "")
                         removed_count += 1
-                        print(f"Removed device '{device_name}' from slot {slot_index + self.slot_start} (ticket {ticket} is closed)")
+                        print(f"Removed device '{device_name}' from slot {slot_index + self.slot_start} (ticket {ticket} {removal_reason})")
                         continue
                 preserved_devices.append(device_entry)
             
@@ -217,9 +216,16 @@ class Shelf:
             self.saveSlots()
         
         if removed_count > 0:
-            print(f"Removed {removed_count} device(s) from closed tickets on {self.file_name}")
+            print(f"Removed {removed_count} device(s) from {self.file_name}: ticket {removal_reason}")
         
         return removed_count
+
+    def removeDevicesFromClosedTickets(self, active_ticket_numbers: set):
+        """
+        Remove devices from shelves that are associated with closed tickets.
+        Devices whose tickets are not in the active_ticket_numbers set will be removed.
+        """
+        return self.removeDevicesNotInTicketSet(active_ticket_numbers, "is closed")
 
     def displaySlots(self):
         if self.number_of_devices_per_slot <= 0: return -1

@@ -498,7 +498,7 @@
         .then(res => res.json())
         .then(json => {
           const rows = json.result || [];
-          renderTable(rows);
+          renderTable(rows, { force: true });
 
           // If throttled, let the user know when they can refresh again
           if (json.throttled && typeof json.next_allowed_in === 'number') {
@@ -521,6 +521,22 @@
     column: localStorage.getItem('sortColumn') || null,
     direction: localStorage.getItem('sortDirection') || 'asc'
   };
+  let lastRenderedDataSignature = null;
+
+  function getRenderSignature(data) {
+    if (!Array.isArray(data)) return '';
+    return JSON.stringify(data.map(item => ({
+      number: item.number || '',
+      sys_id: item.sys_id || '',
+      short_description: item.short_description || '',
+      slot: item.slot || '',
+      ucd: item.ucd || '',
+      requested_for: item.requested_for || '',
+      config_item: resolveConfigItemDisplay(item),
+      request_number: resolveRequestNumberDisplay(item),
+      location: item.location || 'PAB'
+    })));
+  }
 
   function applySort(columnIndex, direction) {
     const rowsArray = Array.from(document.querySelectorAll('#deviceRows tr'));
@@ -585,15 +601,21 @@
   if (savedCategory) setCategory(savedCategory);
   if (savedLocation) setLocation(savedLocation);
 
-  function renderTable(data) {
-    // Clear all current rows
-    const tableBody = document.getElementById('deviceRows');
-    tableBody.innerHTML = "";
-
+  function renderTable(data, options = {}) {
     if (!Array.isArray(data)) {
       console.error("Expected array for data, got:", data);
       return;
     }
+
+    const signature = getRenderSignature(data);
+    if (!options.force && signature === lastRenderedDataSignature) {
+      return;
+    }
+    lastRenderedDataSignature = signature;
+
+    // Clear all current rows
+    const tableBody = document.getElementById('deviceRows');
+    tableBody.innerHTML = "";
 
     data.forEach(item => {
       let type = "computer";
@@ -655,5 +677,4 @@
     slotDevice
   };
 })();
-
 

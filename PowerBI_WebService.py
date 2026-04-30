@@ -54,17 +54,23 @@ def setResponse():
         item["request_number"] = normalize_request_number_display(item)
     globalResponse = formatted_response
     
-    # Build set of active ticket numbers
-    active_ticket_numbers = {str(ticket["number"]) for ticket in tickets}
+    # Build set of active tickets that still have a Slot value in ServiceNow.
+    # If someone removes Slot/UCD from the short description, the shelf JSON
+    # should stop showing that device as slotted.
+    slotted_ticket_numbers = {
+        str(ticket["number"])
+        for ticket in tickets
+        if ticket.get("slot")
+    }
     
-    # Remove devices from closed tickets on all shelves
-    print("Cleaning up devices from closed tickets...")
+    # Remove devices from closed tickets or tickets that no longer show a slot.
+    print("Cleaning up devices that are no longer valid shelf entries...")
     total_removed = 0
     for shelf in shelves.values():
-        removed = shelf.removeDevicesFromClosedTickets(active_ticket_numbers)
+        removed = shelf.removeDevicesNotInTicketSet(slotted_ticket_numbers, "is closed or no longer has a Slot value")
         total_removed += removed
     if total_removed > 0:
-        print(f"Total devices removed from closed tickets: {total_removed}")
+        print(f"Total devices removed from invalid shelf entries: {total_removed}")
     
     process_slot_tickets()
 
